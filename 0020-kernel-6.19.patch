@@ -1,0 +1,53 @@
+diff -Naur a/kernel/nv-time.h b/kernel/nv-time.h
+--- a/kernel/nv-time.h	2026-04-12 18:45:04.567728445 +0200
++++ b/kernel/nv-time.h	2026-04-12 18:49:15.790678900 +0200
+@@ -33,6 +33,19 @@
+     __kernel_suseconds_t tv_usec;
+ };
+
++/*
++ * in_hardirq() was added in v5.11-rc1 (2020-12-15) to replace in_irq().
++ * Fall back to in_irq() for older kernels that don't have in_hardirq().
++ */
++static inline NvBool nv_in_hardirq(void)
++{
++#if defined(in_hardirq)
++    return in_hardirq();
++#else
++    return in_irq();
++#endif
++}
++
+ static inline void nv_gettimeofday(struct nv_timeval *tv)
+ {
+ #ifdef NV_DO_GETTIMEOFDAY_PRESENT
+diff -Naur a/kernel/os-interface.c b/kernel/os-interface.c
+--- a/kernel/os-interface.c	2026-04-12 19:06:08.431693921 +0200
++++ b/kernel/os-interface.c	2026-04-12 19:09:38.068422032 +0200
+@@ -219,7 +219,7 @@
+ 
+ BOOL NV_API_CALL os_is_isr(void)
+ {
+-    return (in_irq());
++    return (nv_in_hardirq());
+ }
+ 
+ // return TRUE if the caller is the super-user
+@@ -479,7 +479,7 @@
+     nv_gettimeofday(&tm1);
+ #endif
+ 
+-    if (in_irq() && (MicroSeconds > NV_MAX_ISR_DELAY_US))
++    if (nv_in_hardirq() && (MicroSeconds > NV_MAX_ISR_DELAY_US))
+         return RM_ERROR;
+     
+     mdelay_safe_msec = MicroSeconds / 1000;
+@@ -524,7 +524,7 @@
+     tm_start = tm_aux;
+ #endif
+ 
+-    if (in_irq() && (MilliSeconds > NV_MAX_ISR_DELAY_MS))
++    if (nv_in_hardirq() && (MilliSeconds > NV_MAX_ISR_DELAY_MS))
+         return RM_ERROR;
+ 
+     if (!NV_MAY_SLEEP()) 
