@@ -1,0 +1,92 @@
+diff --color --unified --recursive --text a/kernel/conftest.sh b/kernel/conftest.sh
+--- a/kernel/conftest.sh
++++ b/kernel/conftest.sh
+@@ -196,7 +196,7 @@
+ }
+
+ build_cflags() {
+-    BASE_CFLAGS="-I${SCRIPTDIR} -std=gnu17 -O2 -Wno-implicit-function-declaration -Wno-incompatible-pointer-types -D__KERNEL__ \
++    BASE_CFLAGS="-I${SCRIPTDIR} -std=gnu17 -fms-extensions -Wunused-but-set-variable=3 -O2 -Wno-implicit-function-declaration -Wno-incompatible-pointer-types -D__KERNEL__ \
+ -DKBUILD_BASENAME=\"#conftest$$\" -DKBUILD_MODNAME=\"#conftest$$\" \
+ -nostdinc -isystem $ISYSTEM"
+
+diff --color --unified --recursive --text a/kernel/nv.c b/kernel/nv.c
+--- a/kernel/nv.c
++++ b/kernel/nv.c
+@@ -1455,7 +1455,13 @@
+ #endif
+ #if !defined(NV_VMWARE) && \
+   (defined(NVCPU_X86) || defined(NVCPU_X86_64))
+-        if (nv->primary_vga && (screen_info.orig_video_isVGA != 0x01))
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 20, 0)
++        // Rel. commit "sysfb: Replace screen_info with sysfb_primary_display" (Thomas Zimmermann, 26 Nov 2025)
++        const struct screen_info *si = &sysfb_primary_display.screen;
++#else
++        const struct screen_info *si = &screen_info;
++#endif
++        if (nv->primary_vga && (si->orig_video_isVGA != 0x01))
+         {
+             if (!nv_fbdev_failure_detected)
+             {
+diff --color --unified --recursive --text a/kernel/nvidia-modules-common.mk b/kernel/nvidia-modules-common.mk
+--- a/kernel/nvidia-modules-common.mk
++++ b/kernel/nvidia-modules-common.mk
+@@ -39,7 +39,7 @@
+
+ ccflags-y += -std=gnu17
+ ccflags-y += -I$(src)
+-ccflags-y += -Wall -MD $(DEFINES) $(INCLUDES) -Wno-cast-qual -Wno-error -Wno-format-extra-args
++ccflags-y += -Wunused-but-set-variable=3 -fms-extensions -MD $(DEFINES) $(INCLUDES) -Wno-cast-qual -Wno-error -Wno-format-extra-args
+
+ #
+ # Output directory for the build; default to the source directory if not set.
+diff --color --unified --recursive --text a/kernel/nv-linux.h b/kernel/nv-linux.h
+--- a/kernel/nv-linux.h
++++ b/kernel/nv-linux.h
+@@ -178,6 +178,9 @@
+ #endif
+ #if defined(NV_LINUX_SCREEN_INFO_H_PRESENT)
+ #include <linux/screen_info.h>      /* screen_info                      */
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 20, 0)
++#include <linux/sysfb.h>            /* sysfb_primary_display            */
++#endif
+ #else
+ #include <linux/tty.h>              /* screen_info                      */
+ #endif
+diff --color --unified --recursive --text a/kernel/os-interface.c b/kernel/os-interface.c
+--- a/kernel/os-interface.c
++++ b/kernel/os-interface.c
+@@ -1153,12 +1153,18 @@
+ #if !defined(NV_VMWARE) && (defined(NVCPU_X86) || defined(NVCPU_X86_64))
+     if (NV_EFI_ENABLED())
+     {
+-        *pPhysicalAddress = screen_info.lfb_base;
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 20, 0)
++        // Rel. commit "sysfb: Replace screen_info with sysfb_primary_display" (Thomas Zimmermann, 26 Nov 2025)
++        const struct screen_info *si = &sysfb_primary_display.screen;
++#else
++        const struct screen_info *si = &screen_info;
++#endif
++        *pPhysicalAddress = si->lfb_base;
+ #if defined(VIDEO_CAPABILITY_64BIT_BASE)
+-        *pPhysicalAddress |= (NvU64)screen_info.ext_lfb_base << 32;
++        *pPhysicalAddress |= (NvU64)si->ext_lfb_base << 32;
+ #endif
+-        *pHeight = screen_info.lfb_height;
+-        *pPitch = screen_info.lfb_linelength;
++        *pHeight = si->lfb_height;
++        *pPitch = si->lfb_linelength;
+         return RM_OK;
+     }
+ #endif
+diff --color --unified --recursive --text a/kernel/uvm/conftest.sh b/kernel/uvm/conftest.sh
+--- a/kernel/uvm/conftest.sh
++++ b/kernel/uvm/conftest.sh
+@@ -196,7 +196,7 @@
+ }
+
+ build_cflags() {
+-    BASE_CFLAGS="-std=gnu17 -O2 -Wno-implicit-function-declaration -Wno-incompatible-pointer-types -D__KERNEL__ \
++    BASE_CFLAGS="-std=gnu17 -fms-extensions -Wunused-but-set-variable=3 -O2 -Wno-implicit-function-declaration -Wno-incompatible-pointer-types -D__KERNEL__ \
+ -DKBUILD_BASENAME=\"#conftest$$\" -DKBUILD_MODNAME=\"#conftest$$\" \
+ -nostdinc -isystem $ISYSTEM"
